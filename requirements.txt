@@ -1,3 +1,13 @@
+# Core data stack
+pandas
+numpy
+requests
+
+# HTML parsing / retries / progress
+beautifulsoup4
+urllib3
+tqdm
+
 # pandas.read_excel engines: .xls -> xlrd, .xlsx/.xlsm -> openpyxl
-xlrd>=2.0.1
-openpyxl>=3.0.0
+xlrd
+openpyxl
