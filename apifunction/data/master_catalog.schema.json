@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GovOpenAPI Master Catalog",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "index",
+      "table_name",
+      "source",
+      "description",
+      "endpoint"
+    ],
+    "properties": {
+      "index": {
+        "type": "string"
+      },
+      "dataset_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "parent_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "service_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "table_name": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "endpoint": {
+        "type": "string"
+      },
+      "method": {
+        "enum": [
+          "GET",
+          "POST"
+        ]
+      },
+      "auth_type": {
+        "enum": [
+          "none",
+          "query_key",
+          "header_key",
+          "path_key"
+        ]
+      },
+      "auth_env_var": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "auth_header_name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "auth_query_name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "deprecated": {
+        "type": "boolean"
+      },
+      "version": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "metadata": {
+        "type": "object"
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "type": {
+              "type": "string"
+            },
+            "default": {},
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": {
+              "type": "string"
+            },
+            "source_alias": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

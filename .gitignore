@@ -1,0 +1,6 @@
+apifunction_for_reference/
+*.zip
+tmp_*.html
+apifunction/주제별통계.xls
+apifunction/__pycache__/
+apifunction/.cursor/

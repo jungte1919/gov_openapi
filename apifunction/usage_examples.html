@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Table 사용 가이드</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      line-height: 1.6;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+    h1, h2, h3 { margin-top: 0; }
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+    pre {
+      background: #0b1020;
+      color: #e5e7eb;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .note {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .warn {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .toc a {
+      color: #1d4ed8;
+      text-decoration: none;
+      margin-right: 10px;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+    .toc a:hover { text-decoration: underline; }
+    ul { margin-top: 8px; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <h1>Master Table 사용 가이드</h1>
+  <p>
+    이 문서는 <code>master_table.py</code>의 핵심 함수
+    <code>build_master_table()</code>, <code>load_table()</code>, <code>fetch_one()</code>
+    중심으로 작성되었습니다.
+  </p>
+  <p class="note">
+    <strong>안내:</strong> <code>master_table.py</code>는 프로젝트(<code>apifunction</code> 폴더)에
+    이미 포함되어 있으므로 별도 다운로드 없이 바로 import해서 사용할 수 있습니다.
+  </p>
+
+  <div class="card toc">
+    <h2>목차</h2>
+    <a href="#overview">1) 개요</a>
+    <a href="#schema">2) 마스터 테이블 스키마</a>
+    <a href="#build">3) build_master_table()</a>
+    <a href="#load">4) load_table()</a>
+    <a href="#search">5) search_table()</a>
+    <a href="#fetch">6) fetch_one()</a>
+    <a href="#flow">7) 동작 원리</a>
+    <a href="#sources">8) 포함 데이터(Source)</a>
+    <a href="#recommended">9) 권장 사용 패턴</a>
+  </div>
+
+  <div class="card" id="overview">
+    <h2>1) 개요</h2>
+    <p>
+      전체 흐름은 아래와 같습니다.
+    </p>
+    <ol>
+      <li>최초 1회: <code>build_master_table()</code>로 카탈로그 수집/생성</li>
+      <li>CSV 저장: <code>master.to_csv(..., encoding="utf-8-sig")</code></li>
+      <li>일상 사용: <code>load_table()</code>로 빠르게 로드</li>
+      <li>단건 조회: <code>fetch_one()</code>로 source별 실제 API 호출</li>
+    </ol>
+  </div>
+
+  <div class="card" id="schema">
+    <h2>2) 마스터 테이블 스키마</h2>
+    <p>현재 마스터 테이블의 표준 컬럼은 아래 8개입니다.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>컬럼</th>
+          <th>설명</th>
+          <th>예시</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>index</code></td>
+          <td>고유 식별자. 보통 <code>source:table_id</code> 형태</td>
+          <td><code>kosis:DT_1IN2030</code></td>
+        </tr>
+        <tr>
+          <td><code>source</code></td>
+          <td>데이터 출처</td>
+          <td><code>kosis</code>, <code>ecos</code>, <code>worldbank</code></td>
+        </tr>
+        <tr>
+          <td><code>table_id</code></td>
+          <td>source 내부의 통계표/지표 ID</td>
+          <td><code>102Y004</code>, <code>NGDP_RPCH</code></td>
+        </tr>
+        <tr>
+          <td><code>table_name</code></td>
+          <td>표/지표 이름</td>
+          <td><code>본원통화 구성내역...</code></td>
+        </tr>
+        <tr>
+          <td><code>cycle</code></td>
+          <td>주기 코드</td>
+          <td><code>Y</code>, <code>M</code>, <code>Q</code>, <code>H</code>, <code>F</code></td>
+        </tr>
+        <tr>
+          <td><code>start_date</code></td>
+          <td>조회 시작값(문자열 기준)</td>
+          <td><code>2015</code>, <code>200001</code></td>
+        </tr>
+        <tr>
+          <td><code>end_date</code></td>
+          <td>조회 종료값(문자열 기준)</td>
+          <td><code>2024</code>, <code>202412</code></td>
+        </tr>
+        <tr>
+          <td><code>params</code></td>
+          <td>source별 추가 파라미터(dict)</td>
+          <td><code>{"style_num":"1", ...}</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" id="build">
+    <h2>3) build_master_table()</h2>
+    <p>소스별 카탈로그를 동적으로 수집해 master DataFrame을 생성합니다.</p>
+    <div class="note">
+      <strong>KOSIS 파일 준비 방법:</strong>
+      <ol>
+        <li>
+          <a href="https://kosis.kr/statisticsList/statisticsListIndex.do?vwcd=MT_ZTITLE&amp;menuId=M_01_01" target="_blank" rel="noopener noreferrer">
+            KOSIS 주제별 통계 페이지
+          </a>
+          에 접속합니다.
+        </li>
+        <li>
+          <strong>목록 받기</strong>를 누른 뒤, 우측 상단 <strong>전체 다운로드</strong>로 받은 파일(<code>주제별통계.xls</code>)을
+          <code>kosis_excel_path</code>에 지정해 사용합니다.
+        </li>
+      </ol>
+    </div>
+    <pre>from master_table import build_master_table
+
+master = build_master_table(
+    kosis_excel_path="주제별통계.xls",
+    include_sources=("kosis", "ecos", "imf", "enara", "molit", "worldbank"),
+    timeout=60,
+)
+
+print(master.shape)
+print(master.columns.tolist())
+print(master["source"].value_counts())
+
+# 수집 중 이슈(예: 특정 source 네트워크 장애)
+print(master.attrs.get("build_issues", []))</pre>
+    <div class="warn">
+      <strong>주의:</strong> 전체 build는 오래 걸릴 수 있습니다(네트워크/API 상태 영향 큼).
+      실무에서는 1회 build 후 CSV 저장 + 이후 load_table 재사용을 권장합니다.
+    </div>
+  </div>
+
+  <div class="card" id="load">
+    <h2>4) load_table()</h2>
+    <p>
+      저장해둔 <code>master.csv</code>(UTF-8 SIG)를 빠르게 로드합니다.
+      <code>params</code> 문자열을 dict로 복원합니다.
+    </p>
+    <pre>from master_table import load_table
+
+master = load_table("master.csv")   # 기본값도 master.csv
+print(master.shape)
+print(master.dtypes)
+print(type(master.iloc[0]["params"]))  # dict</pre>
+  </div>
+
+  <div class="card" id="search">
+    <h2>5) search_table()</h2>
+    <p>
+      master table에서 원하는 row를 빠르게 찾는 검색 함수입니다.
+    </p>
+    <pre>from master_table import search_table
+
+# 1) 키워드 검색 (index/table_id/table_name 전체 대상)
+q1 = search_table(master, query="청년", limit=20)
+
+# 2) source + cycle 조합 검색
+q2 = search_table(master, source="kosis", cycle="M", limit=50)
+
+# 3) 정확한 table_id로 검색
+q3 = search_table(master, table_id="DT_1IN2030")
+
+# 4) params에 특정 key가 있는 row만
+q4 = search_table(master, source="molit", params_key="style_num", limit=30)
+
+# 5) 정규식 검색
+q5 = search_table(master, query=r"^worldbank:.*ytil", use_regex=True, limit=10)
+
+display(q1.head())
+display(q2.head())
+display(q3.head())
+display(q4.head())
+display(q5.head())</pre>
+
+    <h3>지원 기능</h3>
+    <ul>
+      <li><code>query</code>: index/table_id/table_name 통합 검색</li>
+      <li><code>source</code>, <code>cycle</code>, <code>table_id</code>: 구조화 필터</li>
+      <li><code>params_key</code>: params(dict) 키 존재 여부 필터</li>
+      <li><code>use_regex</code>, <code>case_sensitive</code>: 문자열 매칭 옵션</li>
+      <li><code>limit</code>: 반환 행 수 제한</li>
+    </ul>
+  </div>
+
+  <div class="card" id="fetch">
+    <h2>6) fetch_one()</h2>
+    <p>
+      master의 한 row를 기준으로 source에 맞는 API를 자동 호출해 실제 데이터를 가져옵니다.
+    </p>
+    <pre>from master_table import fetch_one
+
+# 1) table_id 기반 (source 자동 판별)
+df1 = fetch_one(master, dataset_id="DT_1IN2030")
+
+# 2) index 기반 (가장 안전)
+df2 = fetch_one(master, dataset_id="worldbank:ytil_some_dfcl_all")
+
+# 3) source를 명시하는 방식도 가능
+df3 = fetch_one(master, source="imf", dataset_id="NGDP_RPCH", start_year=2010, end_year=2024)
+
+print(df1.head())
+print(df2.head())
+print(df3.head())</pre>
+
+    <h3>MOLIT 특이사항</h3>
+    <ul>
+      <li>한 번에 최대 5년 제한이 있어 내부적으로 5년씩 자동 분할 후 concat</li>
+      <li>OpenAPI가 406이면 public endpoint fallback 시도</li>
+    </ul>
+  </div>
+
+  <div class="card" id="flow">
+    <h2>7) 동작 원리</h2>
+    <ol>
+      <li><strong>Build 단계:</strong> source별 카탈로그 수집 후 통일 스키마로 정규화</li>
+      <li><strong>Load 단계:</strong> CSV 로드 + <code>params</code> dict 복원</li>
+      <li><strong>Fetch 단계:</strong> <code>index/source</code>로 dispatcher 분기 후 source 전용 함수 호출</li>
+      <li><strong>에러 처리:</strong> source별 API 제약(예: KOSIS 대량조회, MOLIT 5년 제한)을 함수 내부에서 처리</li>
+    </ol>
+  </div>
+
+  <div class="card" id="sources">
+    <h2>8) 포함 데이터(Source)</h2>
+    <ul>
+      <li><code>kosis</code>: KOSIS 엑셀/파라미터 기반 통계표</li>
+      <li><code>ecos</code>: 한국은행 ECOS 통계표</li>
+      <li><code>imf</code>: IMF DataMapper 지표</li>
+      <li><code>enara</code>: e-나라지표 XML OpenAPI 지표/통계표</li>
+      <li><code>molit</code>: 국토교통부 통계누리</li>
+      <li><code>worldbank</code>: World Bank Indicator 목록</li>
+    </ul>
+    <p class="note">
+      source별 네트워크/서비스 상태에 따라 일부 source가 빈 결과일 수 있으며,
+      이 경우 <code>master.attrs["build_issues"]</code>에서 확인할 수 있습니다.
+    </p>
+  </div>
+
+  <div class="card" id="recommended">
+    <h2>9) 권장 사용 패턴</h2>
+    <pre>from master_table import build_master_table, load_table, fetch_one
+
+# 최초 1회 (오래 걸릴 수 있음)
+master = build_master_table(
+    kosis_excel_path="주제별통계.xls",
+    include_sources=("kosis", "ecos", "imf", "enara", "molit", "worldbank"),
+)
+master.to_csv("master.csv", index=False, encoding="utf-8-sig")
+
+# 이후 반복 사용 (빠름)
+master = load_table("master.csv")
+
+# 검색해서 대상 row 확인
+from master_table import search_table
+cands = search_table(master, source="worldbank", query="youth idle", limit=5)
+print(cands[["index", "table_id", "table_name"]])
+
+# 필요한 데이터만 fetch
+df = fetch_one(master, dataset_id="worldbank:ytil_some_dfcl_all", start_year=2010, end_year=2024)
+print(df.head())</pre>
+  </div>
+</body>
+</html>
+
